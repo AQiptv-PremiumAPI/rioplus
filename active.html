@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RioTV Premium</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0d0d0d, #1b2735, #2c5364, #1a1a1a);
+      background-size: 400% 400%;
+      animation: gradientShift 12s ease infinite;
+      color: white;
+      overflow: hidden;
+      text-align: center;
+    }
+
+    /* Background bubbles */
+    .bubble {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.35;
+      animation: float linear infinite;
+      z-index: 0;
+    }
+    .bubble:nth-child(1) { width: 160px; height: 160px; left: 8%; top: 20%; background: radial-gradient(circle, #ff758c, #ff7eb3); animation-duration: 8s; }
+    .bubble:nth-child(2) { width: 110px; height: 110px; left: 70%; top: 35%; background: radial-gradient(circle, #36d1dc, #5b86e5); animation-duration: 9s; }
+    .bubble:nth-child(3) { width: 140px; height: 140px; left: 50%; top: 70%; background: radial-gradient(circle, #43e97b, #38f9d7); animation-duration: 10s; }
+    .bubble:nth-child(4) { width: 90px; height: 90px; left: 25%; top: 80%; background: radial-gradient(circle, #f7971e, #ffd200); animation-duration: 7s; }
+    .bubble:nth-child(5) { width: 180px; height: 180px; left: 85%; top: 15%; background: radial-gradient(circle, #6a11cb, #2575fc); animation-duration: 11s; }
+    .bubble:nth-child(6) { width: 130px; height: 130px; left: 15%; top: 65%; background: radial-gradient(circle, #ff9a9e, #fecfef); animation-duration: 8.5s; }
+    .bubble:nth-child(7) { width: 100px; height: 100px; left: 60%; top: 85%; background: radial-gradient(circle, #84fab0, #8fd3f4); animation-duration: 8s; }
+    .bubble:nth-child(8) { width: 150px; height: 150px; left: 40%; top: 15%; background: radial-gradient(circle, #f6d365, #fda085); animation-duration: 9s; }
+    .bubble:nth-child(9) { width: 120px; height: 120px; left: 75%; top: 75%; background: radial-gradient(circle, #c471ed, #f64f59); animation-duration: 8.5s; }
+    .bubble:nth-child(10){ width: 140px; height: 140px; left: 5%; top: 45%; background: radial-gradient(circle, #30cfd0, #330867); animation-duration: 10s; }
+
+    /* Logo */
+    img.logo {
+      width: 140px;
+      margin-bottom: 20px;
+      filter: drop-shadow(0 0 20px rgba(255,255,255,0.3));
+      animation: floatLogo 3s ease-in-out infinite;
+      z-index: 1;
+    }
+
+    /* Heading */
+    h1 {
+      font-size: 32px;
+      margin-bottom: 15px;
+      background: linear-gradient(90deg, #FFD700, #FF6EC7, #42E695, #00C9FF);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      z-index: 1;
+    }
+
+    /* Sub text */
+    p {
+      font-size: 18px;
+      margin-bottom: 40px;
+      opacity: 0.9;
+      z-index: 1;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-block;
+      margin: 12px;
+      padding: 14px 34px;
+      border-radius: 50px;
+      background: linear-gradient(270deg, #ff6ec7, #36d1dc, #42e695, #ff6ec7);
+      background-size: 600% 600%;
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+      font-size: 16px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 0 12px rgba(0,0,0,0.5);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      z-index: 1;
+      animation: buttonGradient 6s ease infinite;
+    }
+    .btn:hover {
+      transform: scale(1.08);
+      box-shadow: 0 0 25px rgba(255,255,255,0.7);
+    }
+
+    /* Footer */
+    footer {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      background: rgba(0,0,0,0.4);
+      padding: 15px 0;
+      font-size: 14px;
+      border-top: 1px solid rgba(255,255,255,0.2);
+      box-shadow: 0 -2px 8px rgba(0,0,0,0.5);
+      z-index: 1;
+    }
+    footer .mail {
+      margin-bottom: 6px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #ffdb70;
+    }
+    footer .rights {
+      font-size: 13px;
+      color: #bbb;
+      opacity: 0.9;
+    }
+
+    /* Animations */
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    @keyframes floatLogo {
+      0% { transform: translateY(0); }
+      50% { transform: translateY(-12px); }
+      100% { transform: translateY(0); }
+    }
+    @keyframes float {
+      0% { transform: translate(0, 0); }
+      25% { transform: translate(20px, -30px); }
+      50% { transform: translate(-15px, 25px); }
+      75% { transform: translate(25px, 15px); }
+      100% { transform: translate(0, 0); }
+    }
+    @keyframes buttonGradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Background bubbles (10 total) -->
+  <div class="bubble"></div>
+  <div class="bubble"></div>
+  <div class="bubble"></div>
+  <div class="bubble"></div>
+  <div class="bubble"></div>
+  <div class="bubble"></div>
+  <div class="bubble"></div>
+  <div class="bubble"></div>
+  <div class="bubble"></div>
+  <div class="bubble"></div>
+
+  <!-- Logo -->
+  <img src="https://i.ibb.co/Vcx3Vrx7/RioTV.png" alt="RioTV Logo" class="logo"/>
+
+  <!-- Heading & text -->
+  <h1>You are using RioTV Premium Services</h1>
+  <p>Connect with us for support or to extend your subscription.</p>
+
+  <!-- Buttons -->
+  <a class="btn" href="https://t.me/riotvnetwork" target="_blank">🚀 Join Telegram</a>
+  <a class="btn" href="https://t.me/riotvcarebot" target="_blank">💬 Contact Us</a>
+  <a class="btn" href="https://riotv.pages.dev" target="_blank">🌐 Website</a>
+
+  <!-- Footer -->
+  <footer>
+    <div class="mail">
+      <a href="mailto:riotv.care@gmail.com" style="color:#ffdb70; text-decoration:none;">
+        Email: riotv.care@gmail.com
+      </a>
+    </div>
+    <div class="rights">© 2025 RioTV. All Rights Reserved.</div>
+  </footer>
+</body>
+  </html>
+
+  
