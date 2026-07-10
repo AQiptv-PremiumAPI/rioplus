@@ -1,5 +1,12 @@
 {
   "name": "rioplus",
   "main": "index.js",
-  "compatibility_date": "2026-07-10"
+  "compatibility_date": "2026-07-10",
+  "rules": [
+    {
+      "type": "Text",
+      "globs": ["**/*.html"],
+      "fallthrough": true
+    }
+  ]
 }
