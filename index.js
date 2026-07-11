@@ -1,18 +1,22 @@
-import p from './playlist'; // Ensure playlist.js is in the same directory
+import p from './playlist'; // Ensure your local playlist file is bundled/uploaded properly
 
 const REDIS_URL = "https://precious-hog-22705.upstash.io";
 const REDIS_TOKEN = "AVixAAIncDFlZTI3ZGMyYWI4ZDI0OGE4YThmMWI4NTA0ZGIwNjA5OXAxMjI3MDU";
 
-const htmlTemplates = {
-  'invalid.html': `<html><body style="font-family:sans-serif; text-align:center; padding:50px;"><h1>Invalid Request</h1><p>IP or User not authorized.</p></body></html>`,
-  'expire.html': `<html><body style="font-family:sans-serif; text-align:center; padding:50px;"><h1>Session Expired</h1><p>Your subscription has expired.</p></body></html>`,
-  '401.html': `<html><body style="font-family:sans-serif; text-align:center; padding:50px;"><h1>Unauthorized 401</h1></body></html>`
-};
+// ⚠️ APNE DOMAIN KA URL YAHAN DAALEIN (Jahan aapki html files upload hain)
+const BASE_URL = "https://yourdomain.com"; 
 
-const render = (fileName) => {
-  return new Response(htmlTemplates[fileName] || "Not Found", {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' }
-  });
+// Helper function to render HTML from Cloudflare Pages/external URL
+const render = async (filename) => {
+  try {
+    const res = await fetch(`${BASE_URL}/${filename}`);
+    const html = await res.text();
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    });
+  } catch (e) {
+    return new Response(`Error loading ${filename}`, { status: 500 });
+  }
 };
 
 const redis = async (cmd, ...args) => {
@@ -25,7 +29,9 @@ const redis = async (cmd, ...args) => {
 };
 
 const parseDeviceInfo = (ua) => {
-  let model = "Unknown Device", os = "Unknown OS";
+  let model = "Unknown Device";
+  let os = "Unknown OS";
+  
   if (/android/i.test(ua)) {
     const match = ua.match(/\(([^;]+);([^;]+);?([^)]+)?\)/);
     if (match) {
@@ -33,52 +39,63 @@ const parseDeviceInfo = (ua) => {
       if (os.includes("Android")) os = os.split("Android")[1] ? "Android " + os.split("Android")[1].trim() : "Android";
       model = match[2] ? match[2].trim() : os;
       if (model === "K" || model === "U") model = os;
-    } else { os = "Android"; model = "Android Device"; }
+    } else {
+      os = "Android";
+      model = "Android Device";
+    }
   } else if (/iPhone/i.test(ua)) {
     const ver = ua.match(/OS (\d+)_(\d+)/);
-    os = `iOS ${ver ? ver[1] : '?'}`; model = "iPhone";
+    os = `iOS ${ver ? ver[1] : '?'}`;
+    model = "iPhone";
   } else if (/Windows NT/i.test(ua)) {
     const ver = ua.match(/Windows NT ([\d.]+)/);
-    os = `Windows ${ver ? ver[1] : ''}`; model = "PC";
+    os = `Windows ${ver ? ver[1] : ''}`;
+    model = "PC";
   }
+
   const browser = ua.match(/(Chrome|Safari|Firefox|Edge|Opera|RioTV)/i)?.[0] || "Unknown Browser";
   const type = /Mobile|Android|iPhone/i.test(ua) ? "Mobile" : "Desktop";
+  
   return { model, os, browser, type };
 };
 
 export default {
   async fetch(request, env, ctx) {
+    // Mimic Node.js request/response behavior roughly where needed
     const urlObj = new URL(request.url);
     const url = urlObj.pathname + urlObj.search;
-    const query = Object.fromEntries(urlObj.searchParams.entries());
-    const { name: queryName, username, password, xunban, xunbanips, xbantokens, xbanips, pass, xviewlog } = query;
     
-    const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || '127.0.0.1';
+    // Get parameters from URL search queries
+    const query = Object.fromEntries(urlObj.searchParams.entries());
+    
+    // Cloudflare IP detection
+    const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
     const safeIp = ip.replace(/[:.]/g, '_');
+    
+    const { name: queryName, username, password, xunban, xunbanips, xbantokens, xbanips, pass, xviewlog } = query;
     const ua = request.headers.get('user-agent') || '';
     
-    // --- ROUTING / PATH LOGIC FOR WORKERS.DEV ---
-    // Agar URL https://xyz.workers.dev/hjjjjjj hai, toh pathname "/hjjjjjj" hoga.
-    // Hum first segment ko extract karke use "name" (token) treat karenge.
-    const pathSegments = urlObj.pathname.split('/').filter(Boolean);
-    const pathName = pathSegments[0] || ''; 
-    const name = queryName || username || pathName;
+    const name = queryName || username;
 
-    // Extracting ID for streaming parts
-    const segments = urlObj.pathname.split(/\/(?:key|mpd|key1|sony|portal|ch|zee|mpd1|key2|mkd)\//);
-    const id = segments.length > 1 ? segments.pop().split('?')[0] : '';
-    
+    const id = url.split(/\/(?:key|mpd|key1|sony|portal|ch|zee|mpd1|key2|mkd)\//).pop().split('?')[0];
     const uList = (env.USER_ID || '').split(',').map(e => e.split(':'));
     const u = uList.find(([n]) => n === name);
     const P = "Rio@123";
 
+    let ipData = {};
+    try {
+      const response = await fetch(`https://ipinfo.io/${ip}/json`);
+      ipData = await response.json();
+    } catch (e) { ipData = { org: "Unknown", country: "IN", timezone: "Asia/Kolkata" }; }
+
+    const device = parseDeviceInfo(ua);
     const geo = {
-      city: request.cf?.city || 'Unknown',
-      region: request.cf?.region || 'Unknown',
-      country: request.cf?.country || 'IN',
-      timezone: request.cf?.timezone || 'Asia/Kolkata',
-      location: `${request.cf?.latitude || 0},${request.cf?.longitude || 0}`,
-      postal: request.cf?.postalCode || 'Unknown',
+      city: ipData.city || 'Unknown',
+      region: ipData.region || 'Unknown',
+      country: ipData.country || 'IN',
+      timezone: ipData.timezone || 'Asia/Kolkata',
+      location: ipData.loc || '0,0',
+      postal: ipData.postal || 'Unknown',
       time: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
     };
 
@@ -97,6 +114,7 @@ export default {
           return Response.json(data.result ? JSON.parse(decodeURIComponent(data.result)) : { error: "No log found" });
         }
       }
+
       if (xunban) { 
         await redis('SREM', 'black', xunban); 
         await redis('DEL', `active_session_${xunban}`);
@@ -109,6 +127,7 @@ export default {
         }
         return new Response(`Token ${xunban} Unbanned and Status Updated`); 
       }
+
       if (xunbanips) {
         await redis('SREM', 'bans', xunbanips);
         const safeUnbanIp = xunbanips.replace(/[:.]/g, '_');
@@ -116,6 +135,7 @@ export default {
         await redis('DEL', `ban_time_${safeUnbanIp}`);
         return new Response(`IP ${xunbanips} Unbanned Successfully`);
       }
+
       if (xbantokens === "true") return Response.json({ blacklisted_tokens: (await redis('SMEMBERS', 'black')).result || [] });
       if (xbanips === "true") return Response.json({ banned_ips: (await redis('SMEMBERS', 'bans')).result || [] });
     } else if (xviewlog || xunban || xunbanips || xbantokens || xbanips) {
@@ -141,7 +161,7 @@ export default {
           await redis('SADD', 'bans', ip);
           await redis('SET', `ban_time_${safeIp}`, geo.time);
       }
-      return render('invalid.html');
+      return await render('invalid.html');
     }
 
     await redis('DEL', `logs_${safeIp}`);
@@ -165,57 +185,70 @@ export default {
     await redis('SADD', `device_list_${name}`, ip);
     const deviceCount = await redis('SCARD', `device_list_${name}`);
     
+    // --- FIXED STATUS LOGIC ---
     const isBlacklisted = await redis('SISMEMBER', 'black', name);
     const isExpired = !u[1] || Date.now() > +new Date(u[1]) + 66599999;
     
     let currentStatus = "active✅";
-    if (isBlacklisted.result === 1) { currentStatus = "ban❌"; } 
-    else if (isExpired) { currentStatus = "expired❌"; }
+    if (isBlacklisted.result === 1) {
+      currentStatus = "ban❌";
+    } else if (isExpired) {
+      currentStatus = "expired❌";
+    }
 
-    const device = parseDeviceInfo(ua);
     const fullLog = {
-      "user": name, "user status": currentStatus, "last_login": geo.time, "device usage": `${deviceCount.result || 1}`,
-      "ip": ip, "city": geo.city, "region": geo.region, "country": geo.country, "Location": geo.location,
-      "org": request.cf?.asOrganization || "Unknown Network", "postal": geo.postal, "timezone": geo.timezone,
-      "device_type": device.type, "model": device.model, "os": device.os, "browser": device.browser, "ua": ua
+      "user": name, 
+      "user status": currentStatus,
+      "last_login": geo.time, "device usage": `${deviceCount.result || 1}`,
+      "ip": ip, "city": geo.city, "region": geo.region, "country": geo.country,
+      "Location": geo.location, "org": ipData.org || "Unknown Network", "postal": geo.postal,
+      "timezone": geo.timezone, "device_type": device.type, "model": device.model,
+      "os": device.os, "browser": device.browser, "ua": ua
     };
+    // -------------------------
 
     await redis('SET', `info_${name}`, encodeURIComponent(JSON.stringify(fullLog)));
 
-    if (isExpired) return render('expire.html');
+    if (isExpired) return await render('expire.html');
     
-    // Agar direct URL hit hua hai bina streams subpaths ke (jaise sirf /hjjjjjj), toh playlist trigger karein
-    if (pathSegments.length === 1 && pathSegments[0] === name) {
-      return p(request, env); 
-    }
+    if (!url.includes(`vip/${name}`) && !url.includes('get.php')) return new Response('Invalid Request', { status: 404 });
 
     if (url.includes('/zee/')) {
-      if (ua !== 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36') {
-        return new Response('Unauthorized Access ⚠️ (Telegram:@riotvnetwork)', { status: 401 });
-      }
+     if (ua !== 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36') return new Response('Unauthorized Access ⚠️ (Telegram:@riotvnetwork)', { status: 401 });
     }
+    
     if (url.includes('/sony/')) {
-      if (ua !== 'RioTV') return new Response('Unauthorized Access ⚠️ (Telegram:@riotvnetwork)', { status: 401 });
+     if (ua !== 'RioTV') return new Response('Unauthorized Access ⚠️ (Telegram:@riotvnetwork)', { status: 401 });
     }
+      
     const validUA = 'RioTV';
-    if ((url.includes('/key/') || url.includes('/mpd/')) && ua !== validUA) return render('401.html');
+    if ((url.includes('/key/') || url.includes('/mpd/')) && ua !== validUA) {
+      return await render('401.html');
+    }
     
     if ((url.includes('/key1/') || url.includes('/mpd1/'))) {
-      if (!['459','841','1104','1110','1113','1115','1120','1125','1131','1136','1151','1153','1154','1155','1176','1375','1389','3096','3097','3098','3269','3276'].includes(id)) {
-        return new Response('Incorrect ID', { status: 403 });
-      }
+      if (!['459','841','1104','1110','1113','1115','1120','1125','1131','1136','1151','1153','1154','1155','1176','1375','1389','3096','3097','3098','3269','3276'].includes(id)) return new Response('Incorrect ID', { status: 403 });
       if (ua !== 'RioTV') return new Response('Unauthorized Access ⚠️', { status: 401 });
     }
 
-    const pf = async (targetUrl) => {
+    const pf = async (t) => {
       try {
-        const res = await fetch(targetUrl, { headers: { 'user-agent': ua || 'Node-Proxy', 'accept': '*/*' }, redirect: 'manual' });
+        const res = await fetch(t, { headers: { 'user-agent': ua || 'Node-Proxy', accept: '*/*' }, redirect: 'manual' });
+        
+        // Handle Redirects
         if (res.status === 301 || res.status === 302 || res.status === 307) {
-          const loc = res.headers.get('location'); if (loc) return Response.redirect(loc, res.status);
+          const loc = res.headers.get('location');
+          if (loc) return Response.redirect(loc, res.status);
         }
-        const responseHeaders = new Headers(res.headers);
-        responseHeaders.set('cache-control', 'max-age=0, must-revalidate');
-        return new Response(res.body, { status: res.status, headers: responseHeaders });
+        
+        const newHeaders = new Headers(res.headers);
+        newHeaders.set('content-type', res.headers.get('content-type') || 'application/octet-stream');
+        newHeaders.set('cache-control', 'max-age=0, must-revalidate');
+
+        return new Response(res.body, {
+          status: res.status,
+          headers: newHeaders
+        });
       } catch (err) { return new Response('API fetch failed', { status: 502 }); }
     };
 
@@ -229,6 +262,15 @@ export default {
     if (url.includes('/portal')) return pf(`http://webhop.live:80`);
     if (url.includes('/mpdhj/')) return Response.redirect(`https://rioplus.vercel.app/jio/mpd/${id}`, 307);
 
-    return p(request, env); 
+    // Mock response wrapper to replicate Node's res pattern inside custom playlist module
+    const mockRes = {
+      status: (code) => {
+        return { send: (msg) => new Response(msg, { status: code }) };
+      },
+      send: (msg) => new Response(msg),
+      json: (obj) => Response.json(obj)
+    };
+    
+    return p(request, mockRes);
   }
 };
