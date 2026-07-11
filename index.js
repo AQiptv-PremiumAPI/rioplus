@@ -1,15 +1,15 @@
-import p from './playlist'; // Ensure your local playlist file is bundled/uploaded properly
+import p from './playlist'; // Ensure your local playlist file is in the same directory
 
 const REDIS_URL = "https://precious-hog-22705.upstash.io";
 const REDIS_TOKEN = "AVixAAIncDFlZTI3ZGMyYWI4ZDI0OGE4YThmMWI4NTA0ZGIwNjA5OXAxMjI3MDU";
 
-// ⚠️ APNE DOMAIN KA URL YAHAN DAALEIN (Jahan aapki html files upload hain)
-const BASE_URL = "https://yourdomain.com"; 
-
-// Helper function to render HTML from Cloudflare Pages/external URL
-const render = async (filename) => {
+// Dynamic render function: Jo current request ke domain se hi HTML fetch karega
+const render = async (filename, request) => {
   try {
-    const res = await fetch(`${BASE_URL}/${filename}`);
+    const currentUrl = new URL(request.url);
+    const fetchUrl = `${currentUrl.origin}/${filename}`;
+    
+    const res = await fetch(fetchUrl);
     const html = await res.text();
     return new Response(html, {
       headers: { 'Content-Type': 'text/html; charset=utf-8' }
@@ -61,14 +61,13 @@ const parseDeviceInfo = (ua) => {
 
 export default {
   async fetch(request, env, ctx) {
-    // Mimic Node.js request/response behavior roughly where needed
     const urlObj = new URL(request.url);
     const url = urlObj.pathname + urlObj.search;
     
-    // Get parameters from URL search queries
+    // Search queries parse karne ke liye
     const query = Object.fromEntries(urlObj.searchParams.entries());
     
-    // Cloudflare IP detection
+    // Cloudflare IP selection
     const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
     const safeIp = ip.replace(/[:.]/g, '_');
     
@@ -161,7 +160,7 @@ export default {
           await redis('SADD', 'bans', ip);
           await redis('SET', `ban_time_${safeIp}`, geo.time);
       }
-      return await render('invalid.html');
+      return await render('invalid.html', request);
     }
 
     await redis('DEL', `logs_${safeIp}`);
@@ -209,7 +208,7 @@ export default {
 
     await redis('SET', `info_${name}`, encodeURIComponent(JSON.stringify(fullLog)));
 
-    if (isExpired) return await render('expire.html');
+    if (isExpired) return await render('expire.html', request);
     
     if (!url.includes(`vip/${name}`) && !url.includes('get.php')) return new Response('Invalid Request', { status: 404 });
 
@@ -223,7 +222,7 @@ export default {
       
     const validUA = 'RioTV';
     if ((url.includes('/key/') || url.includes('/mpd/')) && ua !== validUA) {
-      return await render('401.html');
+      return await render('401.html', request);
     }
     
     if ((url.includes('/key1/') || url.includes('/mpd1/'))) {
@@ -235,7 +234,6 @@ export default {
       try {
         const res = await fetch(t, { headers: { 'user-agent': ua || 'Node-Proxy', accept: '*/*' }, redirect: 'manual' });
         
-        // Handle Redirects
         if (res.status === 301 || res.status === 302 || res.status === 307) {
           const loc = res.headers.get('location');
           if (loc) return Response.redirect(loc, res.status);
@@ -262,7 +260,7 @@ export default {
     if (url.includes('/portal')) return pf(`http://webhop.live:80`);
     if (url.includes('/mpdhj/')) return Response.redirect(`https://rioplus.vercel.app/jio/mpd/${id}`, 307);
 
-    // Mock response wrapper to replicate Node's res pattern inside custom playlist module
+    // Replicating response behaviors for custom internal playlist module
     const mockRes = {
       status: (code) => {
         return { send: (msg) => new Response(msg, { status: code }) };
