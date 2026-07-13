@@ -4,7 +4,7 @@ const REDIS_URL = "https://precious-hog-22705.upstash.io";
 const REDIS_TOKEN = "AVixAAIncDFlZTI3ZGMyYWI4ZDI0OGE4YThmMWI4NTA0ZGIwNjA5OXAxMjI3MDU";
 
 // ⚠️ APNI STATIC HTML FILES KI SITE KA URL YAHA DALEN
-const BASE_URL = "https://riotv.vercel.app"; 
+const BASE_URL = "https://your-html-site-domain.com/public"; 
 
 const redis = async (cmd, ...args) => {
   try {
@@ -63,7 +63,7 @@ export default {
     const urlObj = new URL(request.url);
     const url = urlObj.pathname + urlObj.search;
     
-    // Cloudflare pe true client IP nikalne ke liye
+    // Cloudflare True Client IP Fetching
     const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
     const safeIp = ip.replace(/[:.]/g, '_');
     
@@ -78,12 +78,21 @@ export default {
     const pass = params.get('pass');
     const xviewlog = params.get('xviewlog');
 
-    // Agar /api/ggh path format hai to pathname se last part nikalne ke liye
-    let pathNameParts = urlObj.pathname.split('/');
-    let name = queryName || pathNameParts[pathNameParts.length - 1];
-    if(name === 'get.php' || !name) {
-      name = queryName;
+    // --- FIX: ROBUST USERNAME PARSING LOGIC ---
+    let name = queryName;
+    if (!name) {
+      const pathParts = urlObj.pathname.split('/').filter(p => p !== "");
+      if (pathParts[0] === 'api' && pathParts[1]) {
+        name = pathParts[1];
+      } else if (pathParts[0]) {
+        name = pathParts[0];
+      }
     }
+    // Agar galat se stream keywords name ban jayein toh safeguard lagaya hai
+    if (['key', 'mpd', 'key1', 'sony', 'portal', 'ch', 'zee', 'mpd1', 'key2', 'mkd', 'get.php'].includes(name)) {
+      name = queryName || "";
+    }
+    // ------------------------------------------
 
     const id = url.split(/\/(?:key|mpd|key1|sony|portal|ch|zee|mpd1|key2|mkd)\//).pop().split('?')[0];
     const uList = (env.USER_ID || '').split(',').map(e => e.split(':'));
@@ -269,7 +278,7 @@ export default {
     if (url.includes('/portal')) return pf(`http://webhop.live:80`);
     if (url.includes('/mpdhj/')) return Response.redirect(`https://rioplus.vercel.app/jio/mpd/${id}`, 307);
 
-    // Playlist module call for Cloudflare format
+    // Cloudflare compatible playlist call
     return p(request, env, ctx, name);
   }
 };
