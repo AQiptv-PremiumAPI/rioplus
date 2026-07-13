@@ -1,23 +1,10 @@
-import p from './playlist'; // Ensure your local playlist file is in the same directory
+import p from './playlist';
 
 const REDIS_URL = "https://precious-hog-22705.upstash.io";
 const REDIS_TOKEN = "AVixAAIncDFlZTI3ZGMyYWI4ZDI0OGE4YThmMWI4NTA0ZGIwNjA5OXAxMjI3MDU";
 
-// Dynamic render function: Jo current request ke domain se hi HTML fetch karega
-const render = async (filename, request) => {
-  try {
-    const currentUrl = new URL(request.url);
-    const fetchUrl = `${currentUrl.origin}/${filename}`;
-    
-    const res = await fetch(fetchUrl);
-    const html = await res.text();
-    return new Response(html, {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' }
-    });
-  } catch (e) {
-    return new Response(`Error loading ${filename}`, { status: 500 });
-  }
-};
+// ⚠️ APNI STATIC HTML FILES KI SITE KA URL YAHA DALEN
+const BASE_URL = "https://your-html-site-domain.com/public"; 
 
 const redis = async (cmd, ...args) => {
   try {
@@ -28,35 +15,47 @@ const redis = async (cmd, ...args) => {
   } catch (e) { return { result: null }; }
 };
 
-const parseDeviceInfo = (ua) => {
-  let model = "Unknown Device";
-  let os = "Unknown OS";
-  
-  if (/android/i.test(ua)) {
-    const match = ua.match(/\(([^;]+);([^;]+);?([^)]+)?\)/);
-    if (match) {
-      os = match[1].trim(); 
-      if (os.includes("Android")) os = os.split("Android")[1] ? "Android " + os.split("Android")[1].trim() : "Android";
-      model = match[2] ? match[2].trim() : os;
-      if (model === "K" || model === "U") model = os;
-    } else {
-      os = "Android";
-      model = "Android Device";
-    }
-  } else if (/iPhone/i.test(ua)) {
-    const ver = ua.match(/OS (\d+)_(\d+)/);
-    os = `iOS ${ver ? ver[1] : '?'}`;
-    model = "iPhone";
-  } else if (/Windows NT/i.test(ua)) {
-    const ver = ua.match(/Windows NT ([\d.]+)/);
-    os = `Windows ${ver ? ver[1] : ''}`;
-    model = "PC";
+const render = async (fileName) => {
+  try {
+    const response = await fetch(`${BASE_URL}/${fileName}`);
+    const html = await response.text();
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    });
+  } catch (e) {
+    return new Response(`Error loading ${fileName}`, { status: 500 });
   }
+};
 
-  const browser = ua.match(/(Chrome|Safari|Firefox|Edge|Opera|RioTV)/i)?.[0] || "Unknown Browser";
-  const type = /Mobile|Android|iPhone/i.test(ua) ? "Mobile" : "Desktop";
-  
-  return { model, os, browser, type };
+const parseDeviceInfo = (ua) => {
+    let model = "Unknown Device";
+    let os = "Unknown OS";
+    
+    if (/android/i.test(ua)) {
+        const match = ua.match(/\(([^;]+);([^;]+);?([^)]+)?\)/);
+        if (match) {
+            os = match[1].trim(); 
+            if (os.includes("Android")) os = os.split("Android")[1] ? "Android " + os.split("Android")[1].trim() : "Android";
+            model = match[2] ? match[2].trim() : os;
+            if (model === "K" || model === "U") model = os;
+        } else {
+            os = "Android";
+            model = "Android Device";
+        }
+    } else if (/iPhone/i.test(ua)) {
+        const ver = ua.match(/OS (\d+)_(\d+)/);
+        os = `iOS ${ver ? ver[1] : '?'}`;
+        model = "iPhone";
+    } else if (/Windows NT/i.test(ua)) {
+        const ver = ua.match(/Windows NT ([\d.]+)/);
+        os = `Windows ${ver ? ver[1] : ''}`;
+        model = "PC";
+    }
+
+    const browser = ua.match(/(Chrome|Safari|Firefox|Edge|Opera|RioTV)/i)?.[0] || "Unknown Browser";
+    const type = /Mobile|Android|iPhone/i.test(ua) ? "Mobile" : "Desktop";
+    
+    return { model, os, browser, type };
 };
 
 export default {
@@ -64,22 +63,33 @@ export default {
     const urlObj = new URL(request.url);
     const url = urlObj.pathname + urlObj.search;
     
-    // Search queries parse karne ke liye
-    const query = Object.fromEntries(urlObj.searchParams.entries());
-    
-    // Cloudflare IP selection
-    const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
+    // Cloudflare pe true client IP nikalne ke liye
+    const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
     const safeIp = ip.replace(/[:.]/g, '_');
     
-    const { name: queryName, username, password, xunban, xunbanips, xbantokens, xbanips, pass, xviewlog } = query;
-    const ua = request.headers.get('user-agent') || '';
-    
-    const name = queryName || username;
+    // URL Search Parameters
+    const params = urlObj.searchParams;
+    const queryName = params.get('name') || params.get('username');
+    const password = params.get('password');
+    const xunban = params.get('xunban');
+    const xunbanips = params.get('xunbanips');
+    const xbantokens = params.get('xbantokens');
+    const xbanips = params.get('xbanips');
+    const pass = params.get('pass');
+    const xviewlog = params.get('xviewlog');
+
+    // Agar /api/ggh path format hai to pathname se last part nikalne ke liye
+    let pathNameParts = urlObj.pathname.split('/');
+    let name = queryName || pathNameParts[pathNameParts.length - 1];
+    if(name === 'get.php' || !name) {
+      name = queryName;
+    }
 
     const id = url.split(/\/(?:key|mpd|key1|sony|portal|ch|zee|mpd1|key2|mkd)\//).pop().split('?')[0];
     const uList = (env.USER_ID || '').split(',').map(e => e.split(':'));
     const u = uList.find(([n]) => n === name);
     const P = "Rio@123";
+    const ua = request.headers.get('user-agent') || '';
 
     let ipData = {};
     try {
@@ -160,7 +170,7 @@ export default {
           await redis('SADD', 'bans', ip);
           await redis('SET', `ban_time_${safeIp}`, geo.time);
       }
-      return await render('invalid.html', request);
+      return render('invalid.html');
     }
 
     await redis('DEL', `logs_${safeIp}`);
@@ -208,7 +218,7 @@ export default {
 
     await redis('SET', `info_${name}`, encodeURIComponent(JSON.stringify(fullLog)));
 
-    if (isExpired) return await render('expire.html', request);
+    if (isExpired) return render('expire.html');
     
     if (!url.includes(`vip/${name}`) && !url.includes('get.php')) return new Response('Invalid Request', { status: 404 });
 
@@ -222,7 +232,7 @@ export default {
       
     const validUA = 'RioTV';
     if ((url.includes('/key/') || url.includes('/mpd/')) && ua !== validUA) {
-      return await render('401.html', request);
+      return render('401.html');
     }
     
     if ((url.includes('/key1/') || url.includes('/mpd1/'))) {
@@ -233,15 +243,14 @@ export default {
     const pf = async (t) => {
       try {
         const res = await fetch(t, { headers: { 'user-agent': ua || 'Node-Proxy', accept: '*/*' }, redirect: 'manual' });
-        
-        if (res.status === 301 || res.status === 302 || res.status === 307) {
-          const loc = res.headers.get('location');
-          if (loc) return Response.redirect(loc, res.status);
-        }
+        const loc = res.headers.get('location');
+        if (loc) return Response.redirect(loc, 302);
         
         const newHeaders = new Headers(res.headers);
-        newHeaders.set('content-type', res.headers.get('content-type') || 'application/octet-stream');
         newHeaders.set('cache-control', 'max-age=0, must-revalidate');
+        if (!newHeaders.has('content-type')) {
+            newHeaders.set('content-type', 'application/octet-stream');
+        }
 
         return new Response(res.body, {
           status: res.status,
@@ -260,15 +269,7 @@ export default {
     if (url.includes('/portal')) return pf(`http://webhop.live:80`);
     if (url.includes('/mpdhj/')) return Response.redirect(`https://rioplus.vercel.app/jio/mpd/${id}`, 307);
 
-    // Replicating response behaviors for custom internal playlist module
-    const mockRes = {
-      status: (code) => {
-        return { send: (msg) => new Response(msg, { status: code }) };
-      },
-      send: (msg) => new Response(msg),
-      json: (obj) => Response.json(obj)
-    };
-    
-    return p(request, mockRes);
+    // Playlist module call for Cloudflare format
+    return p(request, env, ctx, name);
   }
 };
