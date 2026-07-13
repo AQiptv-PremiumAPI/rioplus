@@ -4,7 +4,7 @@ const REDIS_URL = "https://precious-hog-22705.upstash.io";
 const REDIS_TOKEN = "AVixAAIncDFlZTI3ZGMyYWI4ZDI0OGE4YThmMWI4NTA0ZGIwNjA5OXAxMjI3MDU";
 
 // ⚠️ APNI STATIC HTML FILES KI SITE KA URL YAHA DALEN
-const BASE_URL = "https://your-html-site-domain.com/public"; 
+const BASE_URL = "https://riotv.vercel.app"; 
 
 const redis = async (cmd, ...args) => {
   try {
